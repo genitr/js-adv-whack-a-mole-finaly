@@ -4,7 +4,7 @@ import Goblin from "./goblin";
 export default class Game {
   constructor(
     container,
-    iterations = 1,
+    iterations = 20,
     showDelay = 500,
     hideDelay = 1000,
     maxFails = 5,
