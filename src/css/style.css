@@ -1,0 +1,16 @@
+body {
+    color: #767676;
+}
+
+.row {
+  display: flex;
+  flex-direction: row;
+}
+
+.col {
+  display: flex;
+  width: 150px;
+  height: 150px;
+  border: 1px solid #767676;
+}
+
