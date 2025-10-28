@@ -7,5 +7,5 @@
 
 ---
 
-## [Попробовать](https://github.com/genitr/js-adv-whack-a-mole/deployments/github-pages)
+## [Играть](https://github.com/genitr/js-adv-whack-a-mole/deployments/github-pages)
 ![CI](https://github.com/genitr/js-adv-whack-a-mole-finaly/actions/workflows/web.yml/badge.svg)
