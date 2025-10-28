@@ -2,15 +2,8 @@ import PlayingField from "./field";
 import Goblin from "./goblin";
 
 export default class Game {
-  constructor(
-    container,
-    iterations = 20,
-    showDelay = 500,
-    hideDelay = 1000,
-    maxFails = 5,
-  ) {
+  constructor(container, iterations = 20, hideDelay = 1000, maxFails = 5) {
     this.iterations = iterations;
-    this.showDelay = showDelay;
     this.hideDelay = hideDelay;
     this.maxFails = maxFails;
     this.playingField = null;
@@ -21,10 +14,15 @@ export default class Game {
     this.fails = 0;
     this.gameOverCalled = false;
     this.goblinWasClicked = false;
-    this.goblinIsVisible = false;
+    this.clickHappened = false;
+    this.currentModal = null;
     this.init(container);
   }
 
+  /**
+   * Инициализация
+   * @param {Window.element} container Родительский элемент
+   */
   init(container) {
     this.playingField = new PlayingField(container);
     this.playingField.createBoard();
@@ -43,16 +41,16 @@ export default class Game {
       <div style="font-family: Arial, sans-serif; font-size: 18px; margin: 10px;">
         <strong>Очки: <span id="score-value">${this.score}</span></strong> | 
         <strong>Провалы: <span id="fails-value">${this.fails}</span>/
-        <span id="max-fails">${this.maxFails}</span></strong>
+        <span id="max-fails">${this.maxFails}</span></span></strong>
       </div>
     `;
-    document.body.insertBefore(scoreElement, document.body.firstChild);
+    document.body.before(scoreElement, document.body.firstChild);
 
     // Создаем контейнер для кнопки рестарта
     const restartContainer = document.createElement("div");
     restartContainer.id = "restart-container";
     restartContainer.style.margin = "10px";
-    scoreElement.appendChild(restartContainer);
+    scoreElement.append(restartContainer);
   }
 
   /**
@@ -93,6 +91,7 @@ export default class Game {
 
   /**
    * Обработчик клика по ячейке
+   * @param {Window.event} event Перехваченное событие
    */
   handleCellClick(event) {
     if (!this.isRunning || this.gameOverCalled) return;
@@ -106,6 +105,7 @@ export default class Game {
       const hasGoblin = clickedCell.classList.contains(goblin);
 
       if (hasGoblin && clickedCell === this.currentGoblinCell) {
+        this.clickHappened = true;
         this.score++;
         this.goblinWasClicked = true;
         console.log("Попадание! +1 очко");
@@ -114,21 +114,17 @@ export default class Game {
         // Дополнительные эффекты при попадании
         clickedCell.style.transform = "scale(0.95)";
         setTimeout(() => {
-          clickedCell.style.transform = "scale(1)";
+          this.resetAllCellStyles();
         }, 150);
 
         // Сразу скрываем гоблина после попадания
         this.hideAllGoblins();
       } else {
-        this.fails++;
-        console.log("Промах! +1 провал");
         clickedCell.style.backgroundColor = "lightcoral";
-
-        // Проверяем, не достигли ли лимита промахов
-        if (this.fails >= this.maxFails) {
-          this.gameOver("Превышено максимальное количество промахов!");
-          return;
-        }
+        clickedCell.style.transform = "scale(0.95)";
+        setTimeout(() => {
+          this.resetAllCellStyles();
+        }, 150);
       }
 
       this.updateScoreDisplay();
@@ -142,6 +138,10 @@ export default class Game {
     }
   }
 
+  /**
+   * Проверка состояния игры
+   * @returns {boolean} Окончена игра или нет
+   */
   checkGameState() {
     if (this.fails >= this.maxFails && !this.gameOverCalled) {
       this.gameOver("Превышено максимальное количество промахов!");
@@ -167,15 +167,7 @@ export default class Game {
     // Сбрасываем все стили ячеек
     this.resetAllCellStyles();
 
-    // Показываем итоговый результат (только один раз)
-    setTimeout(() => {
-      alert(
-        `Игра окончена!\n${reason}\n\nОчки: ${this.score}\nПромахи: ${this.fails}`,
-      );
-    }, 100);
-
-    // Можно добавить кнопку перезапуска
-    this.showRestartButton();
+    this.createModal(this.playingField.field);
   }
 
   /**
@@ -188,18 +180,13 @@ export default class Game {
       cell.style.transform = "";
     });
   }
-
   /**
-   * Показываем кнопку перезапуска
+   * Создание кнопки перезапуска игры
+   * @param {Window.element} parent Родительский элемент
    */
-  showRestartButton() {
-    const restartContainer = document.getElementById("restart-container");
-    if (!restartContainer) return;
-
-    // Очищаем контейнер перед добавлением новой кнопки
-    restartContainer.innerHTML = "";
-
+  createRestartButton(parent) {
     const restartBtn = document.createElement("button");
+    restartBtn.classList.add("restart");
     restartBtn.textContent = "Играть снова";
     restartBtn.style.cssText = `
       padding: 10px 20px;
@@ -212,11 +199,129 @@ export default class Game {
       margin-top: 5px;
     `;
 
+    // restartBtn.addEventListener("mouseenter", () => {
+    //   restartBtn.style.background = "#45a049";
+    // });
+
+    // restartBtn.addEventListener("mouseleave", () => {
+    //   restartBtn.style.background = "#4CAF50";
+    // });
+
     restartBtn.onclick = () => {
       this.restart();
     };
 
-    restartContainer.appendChild(restartBtn);
+    parent.append(restartBtn);
+  }
+
+  /**
+   * Показываем кнопку перезапуска
+   */
+  showRestartButton() {
+    const restartContainer = document.getElementById("restart-container");
+    if (!restartContainer) return;
+
+    // Очищаем контейнер перед добавлением новой кнопки
+    restartContainer.innerHTML = "";
+
+    this.createRestartButton(restartContainer);
+  }
+
+  /**
+   *
+   * @param {Window.element} element Родительский элемент
+   */
+  createModal(element) {
+    const targetElement = element;
+
+    // Создаем контейнер для модального окна
+    const modalContainer = document.createElement("div");
+    modalContainer.className = "modal-container";
+    modalContainer.style.cssText = `
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1000;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: rgba(0, 0, 0, 0.7);
+    `;
+
+    // Создаем модальное окно
+    const modalWindow = document.createElement("div");
+    modalWindow.className = "modal-window";
+    modalWindow.style.cssText = `
+        background: white;
+        padding: 30px;
+        border-radius: 10px;
+        text-align: center;
+        position: absolute;
+        min-width: 300px;
+    `;
+    const gameOverText = "Игра окончена!";
+    const failText = "Вы проиграли!";
+
+    modalWindow.innerHTML = `
+        <h2>${this.gameOverCalled ? failText : gameOverText}</h2>
+        <p>Финальный счет:</p>
+        <p><strong>Очки: ${this.score}</strong></p>
+        <p><strong>Промахи: ${this.fails}/${this.maxFails}</strong></p>
+    `;
+
+    // Создаем кнопку закрытия
+    const closeBtn = document.createElement("button");
+    closeBtn.textContent = "×";
+    closeBtn.style.cssText = `
+        position: absolute;
+        top: 10px;
+        right: 15px;
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: #666;
+    `;
+
+    // Добавляем обработчики событий
+    closeBtn.addEventListener("click", () => {
+      this.closeCurrentModal();
+      this.showRestartButton();
+    });
+
+    // Обработчик для закрытия по клику на фон
+    modalContainer.addEventListener("click", (e) => {
+      if (e.target === modalContainer) {
+        this.closeCurrentModal();
+        this.showRestartButton();
+      }
+    });
+
+    // Предотвращаем закрытие при клике на само модальное окно
+    modalWindow.addEventListener("click", (e) => {
+      e.stopPropagation();
+    });
+
+    // Собираем модальное окно
+    modalWindow.prepend(closeBtn);
+    this.createRestartButton(modalWindow);
+    modalContainer.append(modalWindow);
+    targetElement.append(modalContainer);
+
+    // Сохраняем ссылку на текущее модальное окно
+    this.currentModal = modalContainer;
+  }
+
+  /**
+   * Закрытие текущего модального окна
+   */
+  closeCurrentModal() {
+    if (this.currentModal) {
+      this.currentModal.remove();
+      this.currentModal = null;
+    }
   }
 
   /**
@@ -229,13 +334,17 @@ export default class Game {
     this.gameOverCalled = false;
     this.goblinWasClicked = false;
     this.currentGoblinCell = null;
+    this.clickHappened = false;
 
     // Сбрасываем стили ячеек
     this.resetAllCellStyles();
 
     // Обновляем отображение и скрываем кнопку рестарта
     this.updateScoreDisplay();
+
     this.hideRestartButton();
+
+    this.closeCurrentModal();
 
     // Запускаем игру заново
     setTimeout(() => {
@@ -248,8 +357,15 @@ export default class Game {
    */
   hideRestartButton() {
     const restartContainer = document.getElementById("restart-container");
+
     if (restartContainer) {
-      restartContainer.innerHTML = "";
+      const button = document.querySelector(".restart");
+      const hasButton = Array.from(restartContainer.children).some(
+        (child) => child === button,
+      );
+      if (hasButton) {
+        restartContainer.innerHTML = "";
+      }
     }
   }
 
@@ -262,15 +378,21 @@ export default class Game {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  /**
+   * Появление гоблина в случайной ячейке
+   */
   showGoblinInCell() {
     // Выбираем случайную ячейку
     const randomCell = this.playingField.getRandomIndex();
     this.goblin.show(randomCell);
     this.currentGoblinCell = randomCell;
     this.goblinWasClicked = false;
-    this.goblinIsVisible = true;
+    this.clickHappened = false;
   }
 
+  /**
+   * Удаление гоблина
+   */
   hideAllGoblins() {
     const col = this.playingField.colClass();
     document.querySelectorAll(col).forEach((cell) => {
@@ -279,10 +401,16 @@ export default class Game {
         child.remove();
       }
     });
+    if (!this.clickHappened && this.currentGoblinCell) {
+      this.fails += 1;
+    }
     this.currentGoblinCell = null;
-    this.goblinIsVisible = false;
   }
 
+  /**
+   * Запускает игровой процесс
+   *
+   */
   async start() {
     if (this.isRunning) return;
 
@@ -290,15 +418,14 @@ export default class Game {
     this.score = 0;
     this.fails = 0;
     this.goblinWasClicked = false;
+    this.clickHappened = false;
     this.updateScoreDisplay();
 
     console.log("Игра началась!");
 
     for (let i = 0; i < this.iterations; i++) {
       if (this.fails >= this.maxFails || this.gameOverCalled) {
-        if (!this.gameOverCalled) {
-          this.gameOver("Превышено максимальное количество промахов!");
-        }
+        this.gameOver("Превышено максимальное количество промахов!");
         break;
       }
 
@@ -310,9 +437,7 @@ export default class Game {
 
       this.hideAllGoblins();
 
-      if (i < this.iterations - 1) {
-        await this.delay(this.showDelay);
-      }
+      this.updateScoreDisplay();
     }
 
     // Если игра завершилась не по промахам, а по завершению итераций
@@ -322,42 +447,16 @@ export default class Game {
   }
 
   /**
-   * Ожидание клика по гоблину
+   * Завершение игры после завершения цикла
+   *
    */
-  waitForGoblinClick() {
-    return new Promise((resolve) => {
-      const checkClick = () => {
-        if (
-          this.goblinWasClicked ||
-          !this.currentGoblinCell ||
-          this.fails >= this.maxFails ||
-          this.gameOverCalled
-        ) {
-          resolve();
-          return;
-        }
-        setTimeout(checkClick, 100);
-      };
-      checkClick();
-    });
-  }
-
   stop() {
     // Защита от двойного вызова
     if (this.gameOverCalled) return;
-    this.gameOverCalled = true;
-
     this.isRunning = false;
     this.hideAllGoblins();
     this.resetAllCellStyles();
 
-    console.log(
-      `Игра окончена! Финальный счет: Очки: ${this.score} / Промахи: ${this.fails}`,
-    );
-
-    setTimeout(() => {
-      alert(`Игра окончена!\nОчки: ${this.score}\nПромахи: ${this.fails}`);
-      this.showRestartButton();
-    }, 100);
+    this.createModal(this.playingField.field);
   }
 }
